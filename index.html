@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Nuvra • Encontre o representante mais próximo</title>
+  <meta name="description" content="Mapa interativo da Nuvra para encontrar o representante mais próximo e falar pelo WhatsApp." />
+  <style>
+    :root {
+      --text: #f4f8fb;
+      --muted: #b5c7d5;
+      --line: rgba(255,255,255,0.12);
+      --accent: #54dafd;
+      --accent-soft: rgba(84,218,253,0.16);
+      --shadow: 0 24px 60px rgba(0,0,0,0.30);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(84,218,253,0.16), transparent 34%),
+        radial-gradient(circle at 15% 88%, rgba(84,218,253,0.10), transparent 24%),
+        linear-gradient(180deg, #0c1722 0%, #08131d 45%, #061018 100%);
+    }
+
+    .app {
+      width: min(100%, 500px);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 18px 16px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .hero {
+      padding: 18px 18px 16px;
+      overflow: hidden;
+      position: relative;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -26% -42% auto;
+      width: 260px;
+      height: 260px;
+      background: radial-gradient(circle, rgba(84,218,253,0.22), transparent 65%);
+      pointer-events: none;
+    }
+
+    .logo-wrap {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .logo-wrap img {
+      width: min(100%, 220px);
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 10px 28px rgba(0,0,0,0.3));
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      text-align: center;
+      line-height: 1.15;
+      font-size: 1.42rem;
+      letter-spacing: -0.03em;
+    }
+
+    .intro {
+      margin: 0;
+      color: var(--muted);
+      text-align: center;
+      font-size: 0.98rem;
+      line-height: 1.45;
+    }
+
+    .hint {
+      margin-top: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      border: 1px solid rgba(84,218,253,0.22);
+      color: #e8faff;
+      font-size: 0.92rem;
+      text-align: center;
+    }
+
+    .panel, .contacts, .footer-box { padding: 16px; }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .panel-header h2,
+    .contacts h2,
+    .footer-box h2 {
+      margin: 0;
+      font-size: 1.04rem;
+      letter-spacing: -0.02em;
+    }
+
+    .badge {
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--muted);
+      font-size: 0.76rem;
+      white-space: nowrap;
+    }
+
+    .map-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1553 / 2048;
+      border-radius: 26px;
+      overflow: hidden;
+      background: #e9ecee;
+      border: 1px solid rgba(255,255,255,0.10);
+    }
+
+    .map-caption {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      z-index: 5;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .map-caption span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-radius: 999px;
+      background: rgba(7,20,31,0.82);
+      border: 1px solid rgba(255,255,255,0.10);
+      color: #ddf7ff;
+      font-size: 0.78rem;
+      text-align: center;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.22);
+    }
+
+    .map-canvas {
+      position: absolute;
+      inset: 0;
+      background: url('assets/mapa-brasil-points.jpg') center center / contain no-repeat;
+    }
+
+    .hotspot-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+    }
+
+    .hotspot {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      width: 34px;
+      height: 34px;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .hotspot::before {
+      content: "";
+      position: absolute;
+      inset: 6px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      box-shadow: 0 0 0 0 rgba(84,218,253,0);
+      transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+    }
+
+    .hotspot::after {
+      content: attr(data-label);
+      position: absolute;
+      top: 50%;
+      left: 122%;
+      transform: translateY(-50%);
+      white-space: nowrap;
+      padding: 6px 8px;
+      border-radius: 999px;
+      background: rgba(7,20,31,0.84);
+      color: #dff7ff;
+      border: 1px solid rgba(255,255,255,0.10);
+      font-size: 0.67rem;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease;
+    }
+
+    .hotspot:hover::before,
+    .hotspot:focus-visible::before,
+    .hotspot.active::before {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 8px rgba(84,218,253,0.16);
+      transform: scale(1.04);
+    }
+
+    .hotspot:hover::after,
+    .hotspot:focus-visible::after,
+    .hotspot.active::after {
+      opacity: 1;
+    }
+
+    .hotspot:focus-visible {
+      outline: none;
+    }
+
+    .info-card {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.09);
+    }
+
+    .kicker {
+      display: inline-block;
+      margin-bottom: 10px;
+      color: #89e5ff;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+    }
+
+    .info-card h3 {
+      margin: 0 0 6px;
+      font-size: 1.06rem;
+      letter-spacing: -0.02em;
+    }
+
+    .info-card p {
+      margin: 6px 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.95rem;
+    }
+
+    .rep-name { color: var(--text); font-weight: 700; font-size: 1.02rem; }
+    .rep-role { color: #daf6ff; font-weight: 600; }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .btn {
+      appearance: none;
+      border: none;
+      text-decoration: none;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: transform .18s ease, opacity .18s ease;
+    }
+
+    .btn:hover,
+    .btn:focus-visible {
+      transform: translateY(-1px);
+      opacity: .98;
+      outline: none;
+    }
+
+    .btn.primary {
+      background: linear-gradient(180deg, #2ad46b, #16ba57);
+      color: #06180c;
+      box-shadow: 0 14px 28px rgba(37, 211, 102, 0.22);
+      flex: 1 1 220px;
+    }
+
+    .btn.secondary {
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.10);
+      flex: 1 1 180px;
+    }
+
+    .contact-grid,
+    .modal-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1fr;
+    }
+
+    .contact-item,
+    .modal-item {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .contact-item .name,
+    .modal-item .name {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .contact-item .role,
+    .modal-item .role {
+      color: #d9f4ff;
+      font-size: 0.88rem;
+      margin-bottom: 6px;
+      line-height: 1.35;
+    }
+
+    .contact-item .phone,
+    .modal-item .phone,
+    .modal-item .area {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .micro {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.80rem;
+      line-height: 1.45;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 7, 12, 0.70);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 50;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal {
+      width: min(100%, 460px);
+      max-height: min(88vh, 780px);
+      overflow: auto;
+      padding: 18px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(14,31,43,0.98), rgba(9,20,29,0.98));
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.40);
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .modal-head h3 {
+      margin: 0;
+      font-size: 1.08rem;
+      letter-spacing: -0.02em;
+    }
+
+    .modal-head p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.4;
+    }
+
+    .close-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 1.2rem;
+      flex: 0 0 auto;
+    }
+
+    @media (min-width: 480px) {
+      .contact-grid,
+      .modal-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="hero card">
+      <div class="logo-wrap">
+        <img src="assets/logo-nuvra.png" alt="Logo Nuvra" />
+      </div>
+      <h1>Encontre o representante mais próximo de você</h1>
+      <p class="intro">Toque em um ponto do mapa do Brasil para localizar o atendimento da sua região e falar pelo WhatsApp.</p>
+      <div class="hint">📍 Toque no ponto correspondente à sua região</div>
+    </section>
+
+    <section class="panel card">
+      <div class="panel-header">
+        <h2>Mapa interativo Nuvra</h2>
+        <div class="badge">Visual pensado para celular</div>
+      </div>
+
+      <div class="map-frame">
+        <div class="map-caption"><span>Toque no ponto desejado para visualizar o atendimento</span></div>
+        <div class="map-canvas" aria-hidden="true"></div>
+        <div class="hotspot-layer" id="hotspotLayer"></div>
+      </div>
+
+      <div class="info-card" id="infoCard" aria-live="polite">
+        <span class="kicker">Atendimento Nuvra</span>
+        <h3>Escolha um ponto no mapa</h3>
+        <p>Selecione um ponto para visualizar o representante responsável e abrir o atendimento direto no WhatsApp.</p>
+      </div>
+    </section>
+
+    <section class="contacts card">
+      <h2>Contatos centrais</h2>
+      <div class="contact-grid" id="centralContacts"></div>
+    </section>
+
+    <section class="footer-box card">
+      <h2>Observação</h2>
+      <p class="micro">As regiões que ainda não são atendidas por representantes serão atendidas pelo gerente comercial. E, se você é representante de alguma região que ainda não é atendida e trabalha com alta decoração, entre em contato com o Munhoz.</p>
+    </section>
+  </main>
+
+  <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head">
+        <div>
+          <h3 id="modalTitle">São Paulo</h3>
+          <p id="modalSubtitle">Escolha a região para falar com o representante correto.</p>
+        </div>
+        <button class="close-btn" id="closeModal" type="button" aria-label="Fechar">×</button>
+      </div>
+      <div class="modal-grid" id="modalGrid"></div>
+    </div>
+  </div>
+
+  <script>
+    const defaultMessage = 'Gostaria de saber mais sobre a Nuvra';
+
+    const reps = {
+      anderson: {
+        name: 'Anderson Lopes',
+        phoneDisplay: '+55 12 98185-9563',
+        phoneRaw: '5512981859563',
+        role: 'Representante comercial',
+        coverage: 'Baixada Santista, Litoral Sul e Norte de SP, Rio de Janeiro e Espírito Santo'
+      },
+      andre: {
+        name: 'Andre Sprocatti',
+        phoneDisplay: '+55 14 98154-6568',
+        phoneRaw: '5514981546568',
+        role: 'Representante comercial',
+        coverage: 'Interior de São Paulo'
+      },
+      bianca: {
+        name: 'Bianca Lopes',
+        phoneDisplay: '+55 12 98235-7997',
+        phoneRaw: '5512982357997',
+        role: 'Representante comercial',
+        coverage: 'São Paulo Capital, Grande SP e ABCD'
+      },
+      bruno: {
+        name: 'Bruno Lopes',
+        phoneDisplay: '+55 12 98235-7980',
+        phoneRaw: '5512982357980',
+        role: 'Representante comercial',
+        coverage: 'Minas Gerais e Vale do Paraíba'
+      },
+      regina: {
+        name: 'Regina Vieira',
+        phoneDisplay: '+55 62 9909-1121',
+        phoneRaw: '556299091121',
+        role: 'Representante comercial',
+        coverage: 'Goiânia e DF'
+      },
+      ediones: {
+        name: 'Ediones Vieira',
+        phoneDisplay: '+55 61 8346-9767',
+        phoneRaw: '556183469767',
+        role: 'Representante comercial',
+        coverage: 'Goiânia e DF'
+      },
+      ivo: {
+        name: 'Ivo Matos',
+        phoneDisplay: '+55 43 9952-5663',
+        phoneRaw: '554399525663',
+        role: 'Representante comercial',
+        coverage: 'Paraná'
+      },
+      marcello: {
+        name: 'Marcello Nogueira',
+        phoneDisplay: '+55 47 9922-9705',
+        phoneRaw: '554799229705',
+        role: 'Representante comercial',
+        coverage: 'Santa Catarina'
+      },
+      roberta: {
+        name: 'Roberta Silverstrin',
+        phoneDisplay: '+55 54 8141-1924',
+        phoneRaw: '555481411924',
+        role: 'Representante comercial',
+        coverage: 'Rio Grande do Sul'
+      },
+      romalle: {
+        name: 'Romalle',
+        phoneDisplay: '+55 71 9110-0002',
+        phoneRaw: '557191100002',
+        role: 'Representante comercial',
+        coverage: 'Norte e Nordeste'
+      },
+      camila_osvaldo: {
+        name: 'Camila Representações',
+        phoneDisplay: '+55 67 98111-4492',
+        phoneRaw: '5567981114492',
+        role: 'Osvaldo',
+        coverage: 'Mato Grosso e Mato Grosso do Sul'
+      },
+      camila_escritorio: {
+        name: 'Camila Representações',
+        phoneDisplay: '+55 67 3029-6001',
+        phoneRaw: '556730296001',
+        role: 'Escritório',
+        coverage: 'Mato Grosso e Mato Grosso do Sul'
+      },
+      eduardo: {
+        name: 'Eduardo Munhoz',
+        phoneDisplay: '+55 19 97416-1601',
+        phoneRaw: '5519974161601',
+        role: 'Gerência comercial, curadoria e marketing',
+        coverage: 'Gerência comercial, curadoria e marketing'
+      },
+      marcos: {
+        name: 'Marcos',
+        phoneDisplay: '+55 17 99791-4586',
+        phoneRaw: '5517997914586',
+        role: 'Fábrica, faturamento, financeiro e logística',
+        coverage: 'Fábrica, faturamento, financeiro e logística'
+      }
+    };
+
+    const hotspots = [
+      { label: 'Amapá', x: 54.0, y: 20.9, repId: 'eduardo' },
+      { label: 'Roraima', x: 32.8, y: 21.5, repId: 'eduardo' },
+      { label: 'Pará', x: 48.7, y: 28.1, repId: 'eduardo' },
+      { label: 'Amazonas', x: 27.3, y: 29.9, repId: 'eduardo' },
+      { label: 'Maranhão', x: 69.6, y: 31.0, repId: 'romalle' },
+      { label: 'Ceará', x: 83.4, y: 31.6, repId: 'romalle' },
+      { label: 'Rio Grande do Norte', x: 89.6, y: 32.9, repId: 'romalle' },
+      { label: 'Paraíba', x: 91.5, y: 35.2, repId: 'romalle' },
+      { label: 'Piauí', x: 77.3, y: 36.1, repId: 'romalle' },
+      { label: 'Pernambuco', x: 87.6, y: 37.7, repId: 'romalle' },
+      { label: 'Alagoas', x: 91.5, y: 39.6, repId: 'romalle' },
+      { label: 'Acre', x: 11.2, y: 40.0, repId: 'eduardo' },
+      { label: 'Tocantins', x: 63.9, y: 41.4, repId: 'eduardo' },
+      { label: 'Sergipe', x: 88.9, y: 41.6, repId: 'romalle' },
+      { label: 'Rondônia', x: 30.2, y: 43.0, repId: 'eduardo' },
+      { label: 'Bahia', x: 80.5, y: 43.9, repId: 'romalle' },
+      { label: 'Mato Grosso', x: 47.7, y: 46.0, repId: 'marcos' },
+      { label: 'Goiás', x: 61.2, y: 49.4, kind: 'godf_multi' },
+      { label: 'Distrito Federal', x: 65.2, y: 49.5, kind: 'godf_multi' },
+      { label: 'Minas Gerais', x: 73.0, y: 54.3, repId: 'bruno' },
+      { label: 'Espírito Santo', x: 81.8, y: 55.6, repId: 'anderson' },
+      { label: 'Mato Grosso do Sul', x: 50.5, y: 57.6, repId: 'marcos' },
+      { label: 'São Paulo', x: 63.3, y: 61.1, kind: 'multi' },
+      { label: 'Rio de Janeiro', x: 76.4, y: 61.5, repId: 'anderson' },
+      { label: 'Paraná', x: 57.7, y: 64.4, repId: 'ivo' },
+      { label: 'Santa Catarina', x: 60.1, y: 69.4, repId: 'marcello' },
+      { label: 'Rio Grande do Sul', x: 53.9, y: 73.0, repId: 'roberta' }
+    ];
+
+    const saoPauloOptions = [
+      {
+        region: 'São Paulo Capital, ABC e Grande São Paulo',
+        repId: 'bianca'
+      },
+      {
+        region: 'Interior de São Paulo',
+        repId: 'andre'
+      },
+      {
+        region: 'Baixada Santista, Litoral Sul e Litoral Norte',
+        repId: 'anderson'
+      },
+      {
+        region: 'Vale do Paraíba',
+        repId: 'bruno'
+      }
+    ];
+
+    const goDfOptions = [
+      {
+        region: 'Goiânia e DF',
+        repId: 'regina'
+      },
+      {
+        region: 'Goiânia e DF',
+        repId: 'ediones'
+      }
+    ];
+
+    const camilaOptions = [
+      {
+        region: 'Mato Grosso e Mato Grosso do Sul',
+        repId: 'camila_osvaldo'
+      },
+      {
+        region: 'Mato Grosso e Mato Grosso do Sul',
+        repId: 'camila_escritorio'
+      }
+    ];
+
+    const centralKeys = ['eduardo', 'marcos'];
+
+    const hotspotLayer = document.getElementById('hotspotLayer');
+    const infoCard = document.getElementById('infoCard');
+    const centralContacts = document.getElementById('centralContacts');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalGrid = document.getElementById('modalGrid');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalSubtitle = document.getElementById('modalSubtitle');
+    const closeModal = document.getElementById('closeModal');
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function createWhatsAppUrl(phoneRaw, areaLabel = '') {
+      const message = `Olá, ${defaultMessage}.`;
+      return `https://wa.me/${phoneRaw}?text=${encodeURIComponent(message)}`;
+    }
+
+    function clearActive() {
+      document.querySelectorAll('.hotspot').forEach(point => point.classList.remove('active'));
+    }
+
+    function renderRepCard(rep, areaLabel) {
+      infoCard.innerHTML = `
+        <span class="kicker">Atendimento disponível</span>
+        <h3>${escapeHtml(areaLabel)}</h3>
+        <p><span class="rep-name">${escapeHtml(rep.name)}</span> · <span class="rep-role">${escapeHtml(rep.role)}</span></p>
+        <p><strong>Cobertura:</strong> ${escapeHtml(rep.coverage)}</p>
+        <p><strong>Telefone:</strong> ${escapeHtml(rep.phoneDisplay)}</p>
+        <div class="actions">
+          <a class="btn primary" href="${createWhatsAppUrl(rep.phoneRaw, areaLabel)}" target="_blank" rel="noopener noreferrer">Abrir no WhatsApp</a>
+          <a class="btn secondary" href="tel:${rep.phoneRaw}">Ligar agora</a>
+        </div>
+      `;
+    }
+
+    function openModal(title, subtitle, items) {
+      modalTitle.textContent = title;
+      modalSubtitle.textContent = subtitle;
+      modalGrid.innerHTML = items.map(item => {
+        const rep = reps[item.repId];
+        return `
+          <div class="modal-item">
+            <div class="name">${escapeHtml(rep.name)}</div>
+            <div class="role">${escapeHtml(rep.role)}</div>
+            <div class="area"><strong>Região:</strong> ${escapeHtml(item.region)}</div>
+            <div class="phone">${escapeHtml(rep.phoneDisplay)}</div>
+            <div class="actions">
+              <a class="btn primary" href="${createWhatsAppUrl(rep.phoneRaw, item.region)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+              <a class="btn secondary" href="tel:${rep.phoneRaw}">Ligar</a>
+            </div>
+          </div>
+        `;
+      }).join('');
+      modalOverlay.classList.add('open');
+      modalOverlay.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeModalFn() {
+      modalOverlay.classList.remove('open');
+      modalOverlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function renderHotspots() {
+      hotspotLayer.innerHTML = hotspots.map((point, index) => `
+        <button class="hotspot" type="button" data-index="${index}" data-label="${escapeHtml(point.label)}" style="left:${point.x}%; top:${point.y}%;" aria-label="${escapeHtml(point.label)}"></button>
+      `).join('');
+
+      hotspotLayer.querySelectorAll('.hotspot').forEach(button => {
+        button.addEventListener('click', () => {
+          const point = hotspots[Number(button.dataset.index)];
+          clearActive();
+          button.classList.add('active');
+
+          if (point.kind === 'multi') {
+            infoCard.innerHTML = `
+              <span class="kicker">São Paulo</span>
+              <h3>Escolha sua região dentro do estado</h3>
+              <p>Este estado possui mais de um representante. O menu foi aberto com todos os contatos distribuídos por região.</p>
+            `;
+            openModal(
+              'São Paulo',
+              'Escolha a região para falar com o representante correto.',
+              saoPauloOptions
+            );
+            return;
+          }
+
+          if (point.kind === 'godf_multi') {
+            infoCard.innerHTML = `
+              <span class="kicker">Goiás e Distrito Federal</span>
+              <h3>Atendimento conjunto</h3>
+              <p>Regina Vieira e Ediones Vieira atendem Goiás e Distrito Federal em conjunto. O menu foi aberto com os dois contatos.</p>
+            `;
+            openModal(
+              point.label,
+              'Escolha um dos contatos que atendem Goiânia e DF.',
+              goDfOptions
+            );
+            return;
+          }
+
+          if (point.kind === 'camila_multi') {
+            infoCard.innerHTML = `
+              <span class="kicker">Mato Grosso e Mato Grosso do Sul</span>
+              <h3>Camila Representações</h3>
+              <p>Escolha um dos dois contatos de WhatsApp da representação.</p>
+            `;
+            openModal(
+              point.label,
+              'Camila Representações — escolha o contato de WhatsApp.',
+              camilaOptions
+            );
+            return;
+          }
+
+          const rep = reps[point.repId];
+          if (rep) {
+            renderRepCard(rep, point.label);
+          }
+        });
+      });
+    }
+
+    function renderCentralContacts() {
+      centralKeys.forEach(key => {
+        const rep = reps[key];
+        const item = document.createElement('div');
+        item.className = 'contact-item';
+        item.innerHTML = `
+          <div class="name">${escapeHtml(rep.name)}</div>
+          <div class="role">${escapeHtml(rep.role)}</div>
+          <div class="phone">${escapeHtml(rep.phoneDisplay)}</div>
+          <div class="actions">
+            <a class="btn primary" href="${createWhatsAppUrl(rep.phoneRaw)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+            <a class="btn secondary" href="tel:${rep.phoneRaw}">Ligar</a>
+          </div>
+        `;
+        centralContacts.appendChild(item);
+      });
+    }
+
+    closeModal.addEventListener('click', closeModalFn);
+    modalOverlay.addEventListener('click', event => {
+      if (event.target === modalOverlay) closeModalFn();
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeModalFn();
+    });
+
+    renderHotspots();
+    renderCentralContacts();
+  </script>
+</body>
+</html>
